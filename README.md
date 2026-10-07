@@ -23,6 +23,7 @@ The `.jar` is stored only in your browser (IndexedDB). It is **not** part of thi
 
 - ✓ = left soft key, ✗ = right soft key
 - **Hold ✗ for about 1.5 seconds:** choose a different `.jar`
+- **Hold ✓ for about 1.5 seconds:** switch between smooth graphics (xBR filter, default) and sharp pixels
 
 ## Notes
 

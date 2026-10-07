@@ -11,17 +11,27 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Peggle">
-    <meta name="theme-color" content="#111111">
+    <meta name="theme-color" content="#0e0b1e">
     <link rel="apple-touch-icon" href="icons/icon-180.png">
     <link rel="icon" type="image/png" href="icons/icon-192.png">
 
     <style>
+        :root {
+            --night: #0e0b1e;      /* Nachthimmel aus dem Spiel */
+            --enamel-hi: #2b2652;
+            --enamel-lo: #1a1636;
+            --brass-hi: #f1d38a;
+            --brass-lo: #b8893d;
+            --glyph: #e8e4ff;
+            --confirm: #8fe3b4;
+            --cancel: #ff9b8a;
+        }
         html, body {
             margin: 0;
             padding: 0;
             height: 100%;
             overflow: hidden;
-            background: #111;
+            background: var(--night);
             color: #eee;
             font-family: -apple-system, system-ui, sans-serif;
             /* kein Zoomen, kein Scrollen, kein Markieren */
@@ -38,9 +48,13 @@
             inset: 0;
             display: flex;
             flex-direction: column;
-            padding-top: env(safe-area-inset-top);
+            /* etwas Luft oben, damit alles tiefer sitzt */
+            padding-top: calc(env(safe-area-inset-top) + 18px);
             padding-bottom: env(safe-area-inset-bottom);
             box-sizing: border-box;
+            background:
+                radial-gradient(120% 60% at 50% 100%, #1d1840 0%, rgba(29,24,64,0) 70%),
+                var(--night);
         }
 
         /* ---------- Spiel oben ---------- */
@@ -52,9 +66,11 @@
             justify-content: center;
             overflow: hidden;
         }
-        #display {
+        #display, #view {
             display: none;
             background: #000;
+        }
+        #display {
             image-rendering: crisp-edges;
             image-rendering: pixelated;
         }
@@ -65,38 +81,89 @@
             padding: 0 20px;
         }
 
-        /* ---------- Tasten unten ---------- */
+        /* ---------- Tasten unten ----------
+           Indigo-Emaille mit Messing-Rand, wie die Rahmen im Spiel;
+           OK ist der Messing-Knopf (der "Kugel-Werfer"). */
         #keys {
             flex: 0 0 auto;
             display: grid;
-            grid-template-columns: repeat(3, min(28vw, 110px));
-            grid-template-rows: repeat(3, clamp(48px, 8.5vh, 66px));
-            gap: 8px;
+            grid-template-columns: repeat(3, min(28vw, 108px));
+            grid-template-rows: repeat(3, clamp(48px, 8.4vh, 64px));
+            gap: 10px 12px;
             justify-content: center;
-            padding: 10px 0 12px;
+            padding: 16px 0 8px;
         }
         .key {
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 1px solid #4a4a4a;
-            border-radius: 14px;
-            background: #2c2c2c;
-            color: #f0f0f0;
-            font-size: 26px;
-            font-weight: 600;
-            line-height: 1;
-            box-shadow: 0 3px 0 #000;
+            border-radius: 18px;
+            color: var(--glyph);
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 45%),
+                linear-gradient(180deg, var(--enamel-hi), var(--enamel-lo));
+            /* feiner Messing-Rand + Lichtkante oben + weicher Schatten */
+            box-shadow:
+                inset 0 0 0 1px rgba(214, 178, 106, 0.38),
+                inset 0 1px 0 rgba(255, 255, 255, 0.10),
+                0 6px 14px -4px rgba(0, 0, 0, 0.75),
+                0 2px 0 rgba(0, 0, 0, 0.55);
+            transition: transform 70ms ease-out, box-shadow 70ms ease-out, filter 70ms ease-out;
+        }
+        .key svg {
+            width: 26px;
+            height: 26px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2.6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            pointer-events: none;
+            filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.5));
         }
         .key.active {
-            background: #5a5a5a;
             transform: translateY(2px);
-            box-shadow: 0 1px 0 #000;
+            filter: brightness(1.18);
+            box-shadow:
+                inset 0 0 0 1px rgba(241, 211, 138, 0.85),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06),
+                0 0 14px -2px rgba(241, 211, 138, 0.35),
+                0 1px 0 rgba(0, 0, 0, 0.55);
         }
-        .key.ok   { font-size: 20px; border-radius: 50%/45%; background: #3a3a3a; }
-        .key.soft-l { color: #6fdc6f; }
-        .key.soft-r { color: #ff7070; }
+        .key.soft-l { color: var(--confirm); }
+        .key.soft-r { color: var(--cancel); }
+
+        .key.ok {
+            border-radius: 999px;
+            color: #3a2608;
+            font-size: 19px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-shadow: 0 1px 0 rgba(255, 240, 200, 0.55);
+            background:
+                radial-gradient(120% 90% at 50% 0%, #fbe7b0 0%, rgba(251,231,176,0) 60%),
+                linear-gradient(180deg, var(--brass-hi), var(--brass-lo));
+            box-shadow:
+                inset 0 0 0 1px rgba(90, 58, 14, 0.55),
+                inset 0 2px 0 rgba(255, 246, 214, 0.65),
+                inset 0 -3px 6px rgba(110, 70, 16, 0.45),
+                0 6px 16px -4px rgba(0, 0, 0, 0.8),
+                0 2px 0 rgba(60, 36, 6, 0.9);
+        }
+        .key.ok.active {
+            filter: brightness(1.08);
+            box-shadow:
+                inset 0 0 0 1px rgba(90, 58, 14, 0.6),
+                inset 0 2px 4px rgba(110, 70, 16, 0.5),
+                0 0 18px -2px rgba(241, 211, 138, 0.55),
+                0 1px 0 rgba(60, 36, 6, 0.9);
+        }
         .key.empty { visibility: hidden; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .key { transition: none; }
+        }
 
         /* ---------- Overlay: .jar auswaehlen ---------- */
         #picker {
@@ -108,43 +175,61 @@
             justify-content: center;
             gap: 18px;
             padding: 24px;
-            background: rgba(17, 17, 17, 0.97);
+            background: rgba(14, 11, 30, 0.97);
             text-align: center;
             z-index: 10;
         }
         #picker.show { display: flex; }
-        #picker p { margin: 0; color: #bbb; font-size: 16px; max-width: 300px; line-height: 1.4; }
+        #picker p { margin: 0; color: #b9b4d9; font-size: 16px; max-width: 300px; line-height: 1.45; }
         #picker label, #picker button {
             display: block;
             min-width: 220px;
             padding: 16px 20px;
             border: 0;
-            border-radius: 14px;
-            background: #2f7df6;
-            color: #fff;
+            border-radius: 999px;
+            color: #3a2608;
             font-size: 18px;
-            font-weight: 600;
+            font-weight: 700;
             font-family: inherit;
+            background: linear-gradient(180deg, var(--brass-hi), var(--brass-lo));
+            box-shadow: inset 0 2px 0 rgba(255, 246, 214, 0.6), 0 6px 16px -4px rgba(0, 0, 0, 0.8);
         }
-        #picker button { background: #333; }
+        #picker button {
+            color: var(--glyph);
+            background: linear-gradient(180deg, var(--enamel-hi), var(--enamel-lo));
+            box-shadow: inset 0 0 0 1px rgba(214, 178, 106, 0.38), 0 6px 14px -4px rgba(0, 0, 0, 0.75);
+        }
         #picker input, #picker [hidden] { display: none; }
     </style>
 </head>
 <body>
     <div id="screen">
         <canvas id="display"></canvas>
+        <canvas id="view"></canvas>
         <div id="status">Lädt…</div>
     </div>
 
     <div id="keys">
-        <div class="key soft-l" data-key="F1" aria-label="Linke Softtaste">✓</div>
-        <div class="key" data-key="ArrowUp" aria-label="Hoch">↑</div>
-        <div class="key soft-r" data-key="F2" aria-label="Rechte Softtaste">✗</div>
-        <div class="key" data-key="ArrowLeft" aria-label="Links">←</div>
+        <div class="key soft-l" data-key="F1" aria-label="Linke Softtaste">
+            <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+        </div>
+        <div class="key" data-key="ArrowUp" aria-label="Hoch">
+            <svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+        </div>
+        <div class="key soft-r" data-key="F2" aria-label="Rechte Softtaste">
+            <svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+        </div>
+        <div class="key" data-key="ArrowLeft" aria-label="Links">
+            <svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+        </div>
         <div class="key ok" data-key="Enter" aria-label="OK">OK</div>
-        <div class="key" data-key="ArrowRight" aria-label="Rechts">→</div>
+        <div class="key" data-key="ArrowRight" aria-label="Rechts">
+            <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </div>
         <div class="key empty"></div>
-        <div class="key" data-key="ArrowDown" aria-label="Runter">↓</div>
+        <div class="key" data-key="ArrowDown" aria-label="Runter">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+        </div>
         <div class="key empty"></div>
     </div>
 

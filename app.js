@@ -14,11 +14,17 @@ import jsReferenceNatives from "./emu/libjs/libjsreference.js";
 import mediaBridgeNatives from "./emu/libjs/libmediabridge.js";
 import midiBridgeNatives from "./emu/libjs/libmidibridge.js";
 
+import { createUpscaler } from "./upscale.js";
+
 // Fixed emulator settings (Nokia, 240x320, sound on).
 const SETTINGS = { phone: "Nokia", width: "240", height: "320", sound: "on" };
 
-// How long ✗ must be held to choose a different .jar.
+// How long ✗ must be held to choose a different .jar,
+// and ✓ to switch between smooth (xBR) and sharp pixels.
 const LONG_PRESS_MS = 1500;
+
+// Very short taps are stretched to this, otherwise the game may not notice them.
+const MIN_PRESS_MS = 80;
 
 // CheerpJ maps the web server root to /app; the emulator lives in ./emu/
 const cheerpjEmuRoot = "/app" + location.pathname.replace(/\/[^/]*$/, "") + "/emu";
@@ -33,6 +39,40 @@ const display = document.getElementById("display");
 const screenCtx = display.getContext("2d");
 const statusEl = document.getElementById("status");
 let started = false;
+
+// The game draws into the hidden 240x320 #display; in smooth mode we show
+// an upscaled copy in #view, in sharp mode #display itself (pixelated).
+const view = document.getElementById("view");
+let upscaler = null;
+try {
+    upscaler = createUpscaler(view);
+} catch (e) {
+    console.error(e);
+}
+
+const MODE_KEY = "peggle.displayMode";
+let smooth = true;
+try {
+    smooth = localStorage.getItem(MODE_KEY) !== "sharp";
+} catch (e) {}
+
+function isSmooth() {
+    return smooth && upscaler !== null;
+}
+
+function toggleDisplayMode() {
+    smooth = !smooth;
+    try {
+        localStorage.setItem(MODE_KEY, smooth ? "smooth" : "sharp");
+    } catch (e) {}
+    fitDisplay();
+}
+
+function renderLoop() {
+    if (started && isSmooth()) upscaler.draw(display);
+    requestAnimationFrame(renderLoop);
+}
+requestAnimationFrame(renderLoop);
 
 function setStatus(text) {
     statusEl.textContent = text;
@@ -113,11 +153,26 @@ async function changeJar() {
 // --------------------------------------------------------------- layout
 
 function fitDisplay() {
-    if (!display.width || !display.height) return;
+    if (!started || !display.width || !display.height) return;
     const area = document.getElementById("screen");
     const scale = Math.min(area.clientWidth / display.width, area.clientHeight / display.height);
-    display.style.width = Math.floor(display.width * scale) + "px";
-    display.style.height = Math.floor(display.height * scale) + "px";
+    const cssW = Math.floor(display.width * scale);
+    const cssH = Math.floor(display.height * scale);
+
+    const shown = isSmooth() ? view : display;
+    const hidden = isSmooth() ? display : view;
+    hidden.style.display = "none";
+    shown.style.display = "block";
+    shown.style.width = cssW + "px";
+    shown.style.height = cssH + "px";
+
+    if (shown === view) {
+        // Render at the phone's real pixel resolution
+        const dpr = window.devicePixelRatio || 1;
+        view.width = Math.round(cssW * dpr);
+        view.height = Math.round(cssH * dpr);
+        upscaler.draw(display);
+    }
 }
 
 window.addEventListener("resize", fitDisplay);
@@ -140,7 +195,12 @@ keyRepeatManager.register((kind, key) => {
 // On-screen keypad, multi-touch, finger can slide from key to key.
 const keysEl = document.getElementById("keys");
 const touchKeyMap = new Map();
-let longPressTimer = null;
+
+// Hidden actions on long press
+const LONG_PRESS_ACTIONS = { F1: toggleDisplayMode, F2: changeJar };
+const longPressTimers = new Map();
+const pressedAt = new Map();
+const pendingUps = new Map();
 
 function keyAt(x, y) {
     const el = document.elementFromPoint(x, y);
@@ -148,24 +208,45 @@ function keyAt(x, y) {
     return key && key.dataset.key ? key : null;
 }
 
+function sendUp(code) {
+    pendingUps.delete(code);
+    keyRepeatManager.post(false, code);
+}
+
 function press(key) {
     if (!key || key.classList.contains("active")) return;
+    const code = key.dataset.key;
     key.classList.add("active");
-    keyRepeatManager.post(true, key.dataset.key);
-    if (key.dataset.key === "F2") {
-        clearTimeout(longPressTimer);
-        longPressTimer = setTimeout(() => {
+
+    if (pendingUps.has(code)) {
+        clearTimeout(pendingUps.get(code));
+        sendUp(code);
+    }
+    pressedAt.set(code, performance.now());
+    keyRepeatManager.post(true, code);
+
+    const action = LONG_PRESS_ACTIONS[code];
+    if (action) {
+        clearTimeout(longPressTimers.get(code));
+        longPressTimers.set(code, setTimeout(() => {
             release(key);
-            changeJar();
-        }, LONG_PRESS_MS);
+            action();
+        }, LONG_PRESS_MS));
     }
 }
 
 function release(key) {
     if (!key || !key.classList.contains("active")) return;
+    const code = key.dataset.key;
     key.classList.remove("active");
-    keyRepeatManager.post(false, key.dataset.key);
-    if (key.dataset.key === "F2") clearTimeout(longPressTimer);
+    clearTimeout(longPressTimers.get(code));
+
+    const remaining = MIN_PRESS_MS - (performance.now() - pressedAt.get(code));
+    if (remaining > 0) {
+        pendingUps.set(code, setTimeout(() => sendUp(code), remaining));
+    } else {
+        sendUp(code);
+    }
 }
 
 keysEl.addEventListener("touchstart", e => {
@@ -229,20 +310,22 @@ window.addEventListener("keydown", onKeyboard);
 window.addEventListener("keyup", onKeyboard);
 
 // Touching the game screen itself is forwarded as pointer input.
-function toGameCoords(clientX, clientY) {
-    const r = display.getBoundingClientRect();
+function toGameCoords(target, clientX, clientY) {
+    const r = target.getBoundingClientRect();
     return {
         x: ((clientX - r.left) * display.width / r.width) | 0,
         y: ((clientY - r.top) * display.height / r.height) | 0,
     };
 }
 
-for (const [type, kind] of [["touchstart", "pointerpressed"], ["touchmove", "pointerdragged"], ["touchend", "pointerreleased"]]) {
-    display.addEventListener(type, e => {
-        e.preventDefault();
-        const t = e.changedTouches[0];
-        evtQueue.queueEvent({ kind, ...toGameCoords(t.clientX, t.clientY) });
-    }, { passive: false });
+for (const canvas of [display, view]) {
+    for (const [type, kind] of [["touchstart", "pointerpressed"], ["touchmove", "pointerdragged"], ["touchend", "pointerreleased"]]) {
+        canvas.addEventListener(type, e => {
+            e.preventDefault();
+            const t = e.changedTouches[0];
+            evtQueue.queueEvent({ kind, ...toGameCoords(canvas, t.clientX, t.clientY) });
+        }, { passive: false });
+    }
 }
 
 // No pinch zoom, no double-tap zoom, no scrolling, no context menu.
@@ -294,7 +377,6 @@ async function startEmulator(jarBytes) {
                 if (!started) {
                     started = true;
                     statusEl.hidden = true;
-                    display.style.display = "block";
                 }
                 display.width = width;
                 display.height = height;
@@ -366,8 +448,10 @@ async function startEmulator(jarBytes) {
     const FreeJ2ME = await lib.org.recompile.freej2me.FreeJ2ME;
     FreeJ2ME.main(["app", appId]).catch(e => {
         console.error(e);
+        started = false;
         statusEl.hidden = false;
         display.style.display = "none";
+        view.style.display = "none";
         setStatus("Das Spiel ist abgestürzt :( Lange auf ✗ drücken, um eine andere .jar zu wählen.");
     });
 }
