@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <title>Peggle</title>
+
+    <!-- Home-Bildschirm / Vollbild -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Peggle">
+    <meta name="theme-color" content="#111111">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <link rel="icon" type="image/png" href="icons/icon-192.png">
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #111;
+            color: #eee;
+            font-family: -apple-system, system-ui, sans-serif;
+            /* kein Zoomen, kein Scrollen, kein Markieren */
+            touch-action: none;
+            overscroll-behavior: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-text-size-adjust: 100%;
+        }
+        body {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            box-sizing: border-box;
+        }
+
+        /* ---------- Spiel oben ---------- */
+        #screen {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        #display {
+            display: none;
+            background: #000;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+        }
+        #status {
+            font-size: 18px;
+            color: #aaa;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        /* ---------- Tasten unten ---------- */
+        #keys {
+            flex: 0 0 auto;
+            display: grid;
+            grid-template-columns: repeat(3, min(28vw, 110px));
+            grid-template-rows: repeat(3, clamp(48px, 8.5vh, 66px));
+            gap: 8px;
+            justify-content: center;
+            padding: 10px 0 12px;
+        }
+        .key {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #4a4a4a;
+            border-radius: 14px;
+            background: #2c2c2c;
+            color: #f0f0f0;
+            font-size: 26px;
+            font-weight: 600;
+            line-height: 1;
+            box-shadow: 0 3px 0 #000;
+        }
+        .key.active {
+            background: #5a5a5a;
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #000;
+        }
+        .key.ok   { font-size: 20px; border-radius: 50%/45%; background: #3a3a3a; }
+        .key.soft-l { color: #6fdc6f; }
+        .key.soft-r { color: #ff7070; }
+        .key.empty { visibility: hidden; }
+
+        /* ---------- Overlay: .jar auswaehlen ---------- */
+        #picker {
+            position: fixed;
+            inset: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            padding: 24px;
+            background: rgba(17, 17, 17, 0.97);
+            text-align: center;
+            z-index: 10;
+        }
+        #picker.show { display: flex; }
+        #picker p { margin: 0; color: #bbb; font-size: 16px; max-width: 300px; line-height: 1.4; }
+        #picker label, #picker button {
+            display: block;
+            min-width: 220px;
+            padding: 16px 20px;
+            border: 0;
+            border-radius: 14px;
+            background: #2f7df6;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 600;
+            font-family: inherit;
+        }
+        #picker button { background: #333; }
+        #picker input, #picker [hidden] { display: none; }
+    </style>
+</head>
+<body>
+    <div id="screen">
+        <canvas id="display"></canvas>
+        <div id="status">Lädt…</div>
+    </div>
+
+    <div id="keys">
+        <div class="key soft-l" data-key="F1" aria-label="Linke Softtaste">✓</div>
+        <div class="key" data-key="ArrowUp" aria-label="Hoch">↑</div>
+        <div class="key soft-r" data-key="F2" aria-label="Rechte Softtaste">✗</div>
+        <div class="key" data-key="ArrowLeft" aria-label="Links">←</div>
+        <div class="key ok" data-key="Enter" aria-label="OK">OK</div>
+        <div class="key" data-key="ArrowRight" aria-label="Rechts">→</div>
+        <div class="key empty"></div>
+        <div class="key" data-key="ArrowDown" aria-label="Runter">↓</div>
+        <div class="key empty"></div>
+    </div>
+
+    <div id="picker">
+        <p id="picker-text">Wähle einmalig die Spieldatei (.jar). Sie wird nur in diesem Browser gespeichert.</p>
+        <label for="jar-input">.jar-Datei wählen</label>
+        <input type="file" id="jar-input" accept=".jar,application/java-archive,application/octet-stream">
+        <button id="picker-cancel" type="button" hidden>Abbrechen</button>
+    </div>
+
+    <script src="https://cjrtnc.leaningtech.com/20260317_2978/loader.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>

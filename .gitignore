@@ -1,0 +1,5 @@
+# Spiel-Dateien nie hochladen
+*.jar
+*.jad
+# ...ausser dem Emulator selbst
+!emu/freej2me-web.jar
