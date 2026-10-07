@@ -83,6 +83,13 @@
         @keyframes drift-a { to { transform: translate3d(8%, -10%, 0) rotate(12deg); } }
         @keyframes drift-b { to { transform: translate3d(-10%, 8%, 0) rotate(-10deg); } }
 
+        /* Himmel: hell, Blau über Violett zu Pink – zeigt das Glas am schönsten */
+        body[data-bg="sky"] {
+            --bg-base: linear-gradient(160deg, #39a7f7 0%, #4f7cf3 30%, #6a5cf0 58%, #a35ef0 80%, #e46ff0 100%);
+            --bg-layer-a: radial-gradient(45% 30% at 20% 85%, rgba(120, 200, 255, 0.45), transparent 70%);
+            --bg-layer-b: radial-gradient(40% 30% at 85% 15%, rgba(255, 160, 240, 0.35), transparent 70%);
+        }
+
         /* Abendrot: der Himmel vom Peggle-Titelbild */
         body[data-bg="sunset"] {
             --bg-base: linear-gradient(176deg, #1b0b33 0%, #4a1450 34%, #a8325a 62%, #f2774b 84%, #ffc078 100%);
@@ -192,48 +199,50 @@
             pointer-events: none;
         }
 
-        /* ---- Liquid Glass ---- */
+        /* ---- Liquid Glass ----
+           Wie Milchglas: kaum Füllung, feine helle Kante, kleine Lichtreflexe
+           auf der Oberkante. Der Hintergrund scheint durch und färbt die Taste. */
         [data-style="glass"] {
-            color: #fff;
-            background: linear-gradient(180deg, rgba(255,255,255,0.20), rgba(255,255,255,0.06));
-            -webkit-backdrop-filter: blur(18px) saturate(180%);
-            backdrop-filter: blur(18px) saturate(180%);
+            color: rgba(255, 255, 255, 0.96);
+            background: linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.07) 100%);
+            -webkit-backdrop-filter: blur(10px) saturate(150%);
+            backdrop-filter: blur(10px) saturate(150%);
             box-shadow:
-                inset 0 1px 1px rgba(255, 255, 255, 0.55),
-                inset 0 -1px 1px rgba(255, 255, 255, 0.10),
-                0 10px 28px -10px rgba(0, 0, 0, 0.55);
+                inset 0 0 0 1px rgba(255, 255, 255, 0.42),
+                inset 0 1px 0 rgba(255, 255, 255, 0.35),
+                inset 0 0 18px rgba(255, 255, 255, 0.06),
+                0 10px 26px -14px rgba(20, 10, 60, 0.35);
         }
-        /* Glanzlicht oben links */
+        /* Lichtreflexe auf der Kante: ein langer links oben, ein kurzer rechts */
         [data-style="glass"]::before {
-            background: radial-gradient(90% 70% at 25% 0%, rgba(255, 255, 255, 0.38), transparent 60%);
-            mix-blend-mode: screen;
+            inset: -1px 0 auto 0;
+            height: 3px;
+            border-radius: 0;
+            background:
+                radial-gradient(closest-side, rgba(255,255,255,1), rgba(255,255,255,0)) no-repeat 24% 50% / 42% 2px,
+                radial-gradient(closest-side, rgba(255,255,255,0.85), rgba(255,255,255,0)) no-repeat 82% 50% / 16% 2px;
         }
-        /* Lichtkante, die zur Mitte hin ausläuft */
+        /* weicher Schein unter dem Reflex + leiser Reflex unten rechts */
         [data-style="glass"]::after {
-            padding: 1px;
-            background: linear-gradient(140deg, rgba(255,255,255,0.75), rgba(255,255,255,0.05) 38%, rgba(255,255,255,0.0) 62%, rgba(255,255,255,0.45));
-            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-            -webkit-mask-composite: xor;
-            mask-composite: exclude;
+            background:
+                radial-gradient(34% 10px at 26% 0, rgba(255,255,255,0.32), rgba(255,255,255,0) 100%),
+                radial-gradient(closest-side, rgba(255,255,255,0.55), rgba(255,255,255,0)) no-repeat 78% 100% / 22% 2px;
         }
-        .key[data-style="glass"] svg { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35)); }
+        .key[data-style="glass"] svg { stroke-width: 2.1; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.18)); }
         .key.ok[data-style="glass"], .kp.ok[data-style="glass"] {
-            background: linear-gradient(180deg, rgba(255,255,255,0.42), rgba(255,255,255,0.16));
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            font-weight: 600;
+            background: linear-gradient(180deg, rgba(255,255,255,0.24) 0%, rgba(255,255,255,0.10) 100%);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
         }
         .key.active[data-style="glass"] {
-            transform: scale(0.94);
-            background: linear-gradient(180deg, rgba(255,255,255,0.36), rgba(255,255,255,0.14));
+            transform: scale(0.95);
+            background: linear-gradient(180deg, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.16) 100%);
             box-shadow:
-                inset 0 1px 1px rgba(255, 255, 255, 0.7),
-                inset 0 0 16px rgba(255, 255, 255, 0.18),
-                0 4px 14px -6px rgba(0, 0, 0, 0.5);
+                inset 0 0 0 1px rgba(255, 255, 255, 0.75),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6),
+                inset 0 0 22px rgba(255, 255, 255, 0.16),
+                0 0 18px -4px rgba(255, 255, 255, 0.35);
         }
-        /* Softtasten: weißes Symbol, getöntes Glas – lesbar auf jedem Hintergrund */
-        .key.soft-l[data-style="glass"] { background: linear-gradient(180deg, rgba(126, 240, 182, 0.42), rgba(40, 200, 130, 0.14)); }
-        .key.soft-r[data-style="glass"] { background: linear-gradient(180deg, rgba(255, 141, 132, 0.42), rgba(235, 70, 70, 0.14)); }
-        .key.soft-l.active[data-style="glass"] { background: linear-gradient(180deg, rgba(126, 240, 182, 0.6), rgba(40, 200, 130, 0.25)); }
-        .key.soft-r.active[data-style="glass"] { background: linear-gradient(180deg, rgba(255, 141, 132, 0.6), rgba(235, 70, 70, 0.25)); }
 
         /* ---- Messing ---- */
         [data-style="brass"] {
@@ -384,7 +393,7 @@
 
         /* Auswahl-Kacheln */
         .choices { display: grid; gap: 10px 8px; }
-        .choices.bgs { grid-template-columns: repeat(5, 1fr); }
+        .choices.bgs { grid-template-columns: repeat(6, 1fr); }
         .choices.styles { grid-template-columns: repeat(4, 1fr); }
         .choice {
             appearance: none;
@@ -400,8 +409,8 @@
         }
         .choice[aria-checked="true"] { color: #fff; font-weight: 600; }
         .swatch {
-            width: 46px;
-            height: 46px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
             transition: box-shadow 160ms ease-out, transform 160ms var(--ease-spring);
@@ -410,6 +419,7 @@
             box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18), 0 0 0 2.5px #0f0f18, 0 0 0 4.5px #fff;
             transform: scale(1.04);
         }
+        .swatch[data-bg="sky"]      { background: linear-gradient(160deg, #39a7f7, #6a5cf0 55%, #e46ff0); }
         .swatch[data-bg="aurora"]   { background: radial-gradient(60% 60% at 30% 70%, #7c4dff, transparent 70%), radial-gradient(60% 60% at 75% 75%, #00d6c4, transparent 70%), radial-gradient(50% 50% at 70% 25%, #ff4fa3, transparent 70%), #0b0c22; }
         .swatch[data-bg="sunset"]   { background: linear-gradient(176deg, #2a0f45, #a8325a 55%, #f2774b 80%, #ffc078); }
         .swatch[data-bg="night"]    { background: radial-gradient(1.5px 1.5px at 30% 30%, #fff, transparent), radial-gradient(1.5px 1.5px at 65% 45%, #fff, transparent), radial-gradient(120% 80% at 50% 100%, #3a2f86, #0e0b1e 70%); }
@@ -530,6 +540,7 @@
             <h3>Hintergrund</h3>
             <div class="choices bgs" id="bg-choices" role="radiogroup" aria-label="Hintergrund">
                 <button class="choice" type="button" role="radio" data-value="aurora"><span class="swatch" data-bg="aurora"></span>Aurora</button>
+                <button class="choice" type="button" role="radio" data-value="sky"><span class="swatch" data-bg="sky"></span>Himmel</button>
                 <button class="choice" type="button" role="radio" data-value="sunset"><span class="swatch" data-bg="sunset"></span>Abendrot</button>
                 <button class="choice" type="button" role="radio" data-value="night"><span class="swatch" data-bg="night"></span>Nacht</button>
                 <button class="choice" type="button" role="radio" data-value="ocean"><span class="swatch" data-bg="ocean"></span>Tiefsee</button>

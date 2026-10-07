@@ -66,7 +66,7 @@ function savePref(key, value) {
     } catch (e) {}
 }
 
-const BACKGROUNDS = ["aurora", "sunset", "night", "ocean", "graphite"];
+const BACKGROUNDS = ["aurora", "sky", "sunset", "night", "ocean", "graphite"];
 const KEY_STYLES = ["glass", "brass", "ceramic", "minimal"];
 
 const prefs = {

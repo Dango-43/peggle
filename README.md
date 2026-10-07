@@ -22,7 +22,7 @@ The `.jar` is stored only in your browser (IndexedDB). It is **not** part of thi
 |     |  ↓   |     |
 
 - ✓ = left soft key, ✗ = right soft key
-- **Hold ✗ for about 1.5 seconds:** settings: background (Aurora, Sunset, Night, Deep sea, Graphite), key style (Liquid Glass, Brass, Ceramic, Minimal), graphics, save backup, other `.jar`
+- **Hold ✗ for about 1.5 seconds:** settings: background (Aurora, Sky, Sunset, Night, Deep sea, Graphite), key style (Liquid Glass, Brass, Ceramic, Minimal), graphics, save backup, other `.jar`
 - **Hold ✓ for about 1.5 seconds:** switch between smooth graphics (xBR filter, default) and sharp pixels
 
 ## Notes
