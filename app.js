@@ -50,22 +50,52 @@ try {
     console.error(e);
 }
 
-const MODE_KEY = "peggle.displayMode";
-let smooth = true;
-try {
-    smooth = localStorage.getItem(MODE_KEY) !== "sharp";
-} catch (e) {}
+// ------------------------------------------------------------ preferences
+
+function loadPref(key, fallback, allowed) {
+    try {
+        const value = localStorage.getItem(key);
+        if (allowed.includes(value)) return value;
+    } catch (e) {}
+    return fallback;
+}
+
+function savePref(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch (e) {}
+}
+
+const BACKGROUNDS = ["aurora", "sunset", "night", "ocean", "graphite"];
+const KEY_STYLES = ["glass", "brass", "ceramic", "minimal"];
+
+const prefs = {
+    gfx: loadPref("peggle.displayMode", "smooth", ["smooth", "sharp"]),
+    bg: loadPref("peggle.background", "aurora", BACKGROUNDS),
+    keys: loadPref("peggle.keyStyle", "glass", KEY_STYLES),
+};
+
+function applyLook() {
+    document.body.dataset.bg = prefs.bg;
+    for (const key of document.querySelectorAll("#keys .key")) {
+        key.dataset.style = prefs.keys;
+    }
+}
+applyLook();
 
 function isSmooth() {
-    return smooth && upscaler !== null;
+    return prefs.gfx === "smooth" && upscaler !== null;
+}
+
+function setGfx(value) {
+    prefs.gfx = value;
+    savePref("peggle.displayMode", value);
+    fitDisplay();
 }
 
 function toggleDisplayMode() {
-    smooth = !smooth;
-    try {
-        localStorage.setItem(MODE_KEY, smooth ? "smooth" : "sharp");
-    } catch (e) {}
-    fitDisplay();
+    setGfx(prefs.gfx === "smooth" ? "sharp" : "smooth");
+    syncSheet();
 }
 
 function renderLoop() {
@@ -226,96 +256,137 @@ async function applyPendingRestore(LauncherUtil, JFile, appId) {
     }
 }
 
-// ------------------------------------------------------------------- menu
-// First start: only "choose .jar". Long press ✗: save backup, load backup,
-// other .jar, cancel.
+// ----------------------------------------------------------- first start
 
 const picker = document.getElementById("picker");
-const pickerText = document.getElementById("picker-text");
 const jarInput = document.getElementById("jar-input");
-const jarLabel = document.getElementById("jar-label");
-const saveInput = document.getElementById("save-input");
-const saveExport = document.getElementById("save-export");
-const saveImport = document.getElementById("save-import");
-const pickerCancel = document.getElementById("picker-cancel");
-
-const MENU_TEXT = "„Spielstand sichern“ legt eine Kopie z. B. in der App „Dateien“ ab. Mit „Spielstand laden“ holst du sie zurück.";
-
-function closePicker() {
-    picker.classList.remove("show");
-}
 
 // Resolves with the jar bytes once the user picked and we stored a file.
-function showPicker(isMenu) {
-    pickerCancel.hidden = !isMenu;
-    saveExport.hidden = !isMenu;
-    saveImport.hidden = !isMenu;
-    jarLabel.classList.toggle("secondary", isMenu);
-    jarLabel.textContent = isMenu ? "Andere .jar-Datei wählen" : ".jar-Datei wählen";
-    if (isMenu) pickerText.textContent = MENU_TEXT;
+function showPicker() {
     picker.classList.add("show");
     jarInput.value = "";
-    saveInput.value = "";
-
-    // Prepare the backup now, so the share sheet opens right on tap
-    // (iOS only allows it directly after a tap).
-    let saveFile = null;
-    if (isMenu) {
-        saveExport.disabled = true;
-        buildSaveFile().then(file => {
-            saveFile = file;
-            saveExport.disabled = false;
-        }).catch(e => {
-            console.error(e);
-            saveExport.disabled = false;
-        });
-    }
-    saveExport.onclick = () => {
-        if (saveFile) {
-            shareOrDownload(saveFile);
-        } else {
-            pickerText.textContent = "Noch kein Spielstand vorhanden. Spiel ein Level, dann versuch es nochmal.";
-        }
-    };
-
-    saveInput.onchange = async () => {
-        const file = saveInput.files[0];
-        if (!file) return;
-        try {
-            const data = await readBackupFile(file);
-            if (!confirm("Spielstand vom " + new Date(data.created).toLocaleDateString("de-DE") +
-                    " laden? Der aktuelle Spielstand wird ersetzt.")) {
-                return;
-            }
-            await dbPut(RESTORE_KEY, data);
-            location.reload();
-        } catch (e) {
-            console.error(e);
-            pickerText.textContent = "Das ist keine Spielstand-Datei. Wähle eine Datei „peggle-spielstand-….json“.";
-        }
-    };
-
     return new Promise(resolve => {
-        pickerCancel.onclick = () => {
-            closePicker();
-            resolve(null);
-        };
         jarInput.onchange = async () => {
             const file = jarInput.files[0];
             if (!file) return;
             const buf = await file.arrayBuffer();
             await dbPut(JAR_KEY, buf);
-            closePicker();
+            picker.classList.remove("show");
             resolve(buf);
         };
     });
 }
 
-async function openMenu() {
-    keyRepeatManager.reset();
-    const buf = await showPicker(true);
-    if (buf) location.reload();
+// --------------------------------------------------------------- settings
+// Long press ✗ opens a glass sheet over the game. The keypad stays visible
+// below it, so a new key style can be seen (and pressed) right away.
+
+const sheet = document.getElementById("sheet");
+const saveExport = document.getElementById("save-export");
+const saveInput = document.getElementById("save-input");
+const saveHint = document.getElementById("save-hint");
+const jarInput2 = document.getElementById("jar-input-2");
+const SAVE_HINT = saveHint.textContent;
+let saveFile = null;
+
+function isSheetOpen() {
+    return sheet.classList.contains("show");
 }
+
+function syncSheet() {
+    for (const [groupId, value] of [["bg-choices", prefs.bg], ["style-choices", prefs.keys], ["gfx-choices", prefs.gfx]]) {
+        for (const el of document.getElementById(groupId).querySelectorAll("[data-value]")) {
+            el.setAttribute("aria-checked", String(el.dataset.value === value));
+        }
+    }
+}
+
+function setHint(text, warn) {
+    saveHint.textContent = text;
+    saveHint.classList.toggle("warn", !!warn);
+}
+
+function openMenu() {
+    keyRepeatManager.reset();
+    syncSheet();
+    setHint(SAVE_HINT);
+    saveInput.value = "";
+    jarInput2.value = "";
+    sheet.classList.add("show");
+    sheet.setAttribute("aria-hidden", "false");
+
+    // Prepare the backup now, so the share sheet opens right on tap
+    // (iOS only allows it directly after a tap).
+    saveFile = null;
+    saveExport.disabled = true;
+    buildSaveFile().then(file => {
+        saveFile = file;
+    }).catch(e => {
+        console.error(e);
+    }).finally(() => {
+        saveExport.disabled = false;
+    });
+}
+
+function closeMenu() {
+    sheet.classList.remove("show");
+    sheet.setAttribute("aria-hidden", "true");
+}
+
+function onChoice(groupId, handler) {
+    document.getElementById(groupId).addEventListener("click", e => {
+        const el = e.target.closest("[data-value]");
+        if (!el) return;
+        handler(el.dataset.value);
+        syncSheet();
+    });
+}
+
+onChoice("bg-choices", value => {
+    prefs.bg = value;
+    savePref("peggle.background", value);
+    applyLook();
+});
+onChoice("style-choices", value => {
+    prefs.keys = value;
+    savePref("peggle.keyStyle", value);
+    applyLook();
+});
+onChoice("gfx-choices", setGfx);
+
+document.getElementById("sheet-done").addEventListener("click", closeMenu);
+
+saveExport.addEventListener("click", () => {
+    if (saveFile) {
+        shareOrDownload(saveFile);
+    } else {
+        setHint("Noch kein Spielstand vorhanden. Schaff ein Level, dann klappt es.", true);
+    }
+});
+
+saveInput.addEventListener("change", async () => {
+    const file = saveInput.files[0];
+    if (!file) return;
+    try {
+        const data = await readBackupFile(file);
+        if (!confirm("Spielstand vom " + new Date(data.created).toLocaleDateString("de-DE") +
+                " laden? Der aktuelle Spielstand wird ersetzt.")) {
+            return;
+        }
+        await dbPut(RESTORE_KEY, data);
+        location.reload();
+    } catch (e) {
+        console.error(e);
+        setHint("Das ist keine Spielstand-Datei. Wähle eine Datei „peggle-spielstand-….json“.", true);
+    }
+});
+
+jarInput2.addEventListener("change", async () => {
+    const file = jarInput2.files[0];
+    if (!file) return;
+    await dbPut(JAR_KEY, await file.arrayBuffer());
+    location.reload();
+});
 
 // --------------------------------------------------------------- layout
 
@@ -342,7 +413,16 @@ function fitDisplay() {
     }
 }
 
-window.addEventListener("resize", fitDisplay);
+// The settings sheet ends just above the keypad.
+function measureKeys() {
+    document.documentElement.style.setProperty("--keys-h", document.getElementById("keys").offsetHeight + "px");
+}
+measureKeys();
+
+window.addEventListener("resize", () => {
+    measureKeys();
+    fitDisplay();
+});
 window.addEventListener("orientationchange", () => setTimeout(fitDisplay, 300));
 
 // ---------------------------------------------------------------- input
@@ -380,10 +460,18 @@ function sendUp(code) {
     keyRepeatManager.post(false, code);
 }
 
+// Keys pressed while the settings are open only light up (style preview).
+const previewOnly = new Set();
+
 function press(key) {
     if (!key || key.classList.contains("active")) return;
     const code = key.dataset.key;
     key.classList.add("active");
+
+    if (isSheetOpen()) {
+        previewOnly.add(code);
+        return;
+    }
 
     if (pendingUps.has(code)) {
         clearTimeout(pendingUps.get(code));
@@ -406,6 +494,7 @@ function release(key) {
     if (!key || !key.classList.contains("active")) return;
     const code = key.dataset.key;
     key.classList.remove("active");
+    if (previewOnly.delete(code)) return;
     clearTimeout(longPressTimers.get(code));
 
     const remaining = MIN_PRESS_MS - (performance.now() - pressedAt.get(code));
@@ -467,7 +556,7 @@ document.addEventListener("mouseup", () => {
 
 // Physical keyboard, for testing on a computer. Escape (emulator settings) is blocked.
 function onKeyboard(e) {
-    if (picker.classList.contains("show")) return;
+    if (picker.classList.contains("show") || isSheetOpen()) return;
     if (e.code !== "Escape" && codeMap[e.code]) {
         keyRepeatManager.post(e.type === "keydown", e.code);
     }
@@ -500,7 +589,8 @@ for (const type of ["gesturestart", "gesturechange", "gestureend", "dblclick", "
     document.addEventListener(type, e => e.preventDefault(), { passive: false });
 }
 document.addEventListener("touchmove", e => {
-    if (!picker.classList.contains("show")) e.preventDefault();
+    // Only the settings list may scroll
+    if (!e.target.closest(".sheet-body")) e.preventDefault();
 }, { passive: false });
 
 // ------------------------------------------------------------- emulator
@@ -639,7 +729,7 @@ async function main() {
     }
     if (!jarBytes) {
         setStatus("");
-        jarBytes = await showPicker(false);
+        jarBytes = await showPicker();
         setStatus("Lädt…");
     }
 

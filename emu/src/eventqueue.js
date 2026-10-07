@@ -1,18 +1,13 @@
 // we can only communicate with java using this queue, can't call anything directly
 // the java side will poll for events in a separate thread
+//
+// Changed from upstream freej2me-web: the original only returned queued events
+// immediately when more than one was waiting, so a single leftover event
+// (typically a key release) stayed stuck until the next input arrived.
 export class EventQueue {
-    promise = null;
     resolvePromise = null;
     started = false;
     queue = [];
-
-    constructor() {
-        this.refreshPromise();
-    }
-
-    refreshPromise() {
-        this.promise = new Promise(r => {this.resolvePromise = r;});
-    }
 
     queueEvent(evt, skipIfExists=null) {
         if (!this.started) return;
@@ -21,19 +16,17 @@ export class EventQueue {
         }
         this.queue.push(evt);
         if (this.resolvePromise) {
-            this.resolvePromise(true);
+            const resolve = this.resolvePromise;
             this.resolvePromise = null;
+            resolve();
         }
     }
 
     async waitForEvent() {
         this.started = true;
-        if (this.queue.length > 1) {
-            return this.queue.shift();
+        while (this.queue.length === 0) {
+            await new Promise(r => { this.resolvePromise = r; });
         }
-
-        await this.promise;
-        this.refreshPromise(); // refresh here
         return this.queue.shift();
     }
 }

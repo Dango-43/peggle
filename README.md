@@ -22,7 +22,7 @@ The `.jar` is stored only in your browser (IndexedDB). It is **not** part of thi
 |     |  ↓   |     |
 
 - ✓ = left soft key, ✗ = right soft key
-- **Hold ✗ for about 1.5 seconds:** menu (back up save, load save, choose a different `.jar`)
+- **Hold ✗ for about 1.5 seconds:** settings: background (Aurora, Sunset, Night, Deep sea, Graphite), key style (Liquid Glass, Brass, Ceramic, Minimal), graphics, save backup, other `.jar`
 - **Hold ✓ for about 1.5 seconds:** switch between smooth graphics (xBR filter, default) and sharp pixels
 
 ## Notes
@@ -34,4 +34,4 @@ The `.jar` is stored only in your browser (IndexedDB). It is **not** part of thi
 
 ## License
 
-GPL-3.0, see [LICENSE](LICENSE). The `emu/` folder contains files from freej2me-web, unchanged.
+GPL-3.0, see [LICENSE](LICENSE). The `emu/` folder contains files from freej2me-web; only `emu/src/eventqueue.js` is changed (fixes key releases arriving late).
