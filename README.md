@@ -22,7 +22,7 @@ The `.jar` is stored only in your browser (IndexedDB). It is **not** part of thi
 |     |  ↓   |     |
 
 - ✓ = left soft key, ✗ = right soft key
-- **Hold ✗ for about 1.5 seconds:** choose a different `.jar`
+- **Hold ✗ for about 1.5 seconds:** menu (back up save, load save, choose a different `.jar`)
 - **Hold ✓ for about 1.5 seconds:** switch between smooth graphics (xBR filter, default) and sharp pixels
 
 ## Notes
@@ -30,6 +30,7 @@ The `.jar` is stored only in your browser (IndexedDB). It is **not** part of thi
 - Settings are fixed: Nokia, 240×320, sound on
 - Needs an internet connection, because the CheerpJ Java runtime loads online
 - No sound? Check the iPhone's silent switch
+- Progress saves automatically in the browser. Deleting the home-screen app deletes it too, so use "Spielstand sichern" in the menu now and then to keep a copy in the Files app
 
 ## License
 

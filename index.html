@@ -183,7 +183,8 @@
         #picker p { margin: 0; color: #b9b4d9; font-size: 16px; max-width: 300px; line-height: 1.45; }
         #picker label, #picker button {
             display: block;
-            min-width: 220px;
+            box-sizing: border-box;
+            width: min(280px, 82vw);
             padding: 16px 20px;
             border: 0;
             border-radius: 999px;
@@ -194,11 +195,12 @@
             background: linear-gradient(180deg, var(--brass-hi), var(--brass-lo));
             box-shadow: inset 0 2px 0 rgba(255, 246, 214, 0.6), 0 6px 16px -4px rgba(0, 0, 0, 0.8);
         }
-        #picker button {
+        #picker .secondary {
             color: var(--glyph);
             background: linear-gradient(180deg, var(--enamel-hi), var(--enamel-lo));
             box-shadow: inset 0 0 0 1px rgba(214, 178, 106, 0.38), 0 6px 14px -4px rgba(0, 0, 0, 0.75);
         }
+        #picker button:disabled { opacity: 0.5; }
         #picker input, #picker [hidden] { display: none; }
     </style>
 </head>
@@ -235,9 +237,12 @@
 
     <div id="picker">
         <p id="picker-text">Wähle einmalig die Spieldatei (.jar). Sie wird nur in diesem Browser gespeichert.</p>
-        <label for="jar-input">.jar-Datei wählen</label>
+        <button id="save-export" type="button" hidden>Spielstand sichern</button>
+        <label for="save-input" id="save-import" class="secondary" hidden>Spielstand laden</label>
+        <input type="file" id="save-input" accept=".json,application/json">
+        <label for="jar-input" id="jar-label">.jar-Datei wählen</label>
         <input type="file" id="jar-input" accept=".jar,application/java-archive,application/octet-stream">
-        <button id="picker-cancel" type="button" hidden>Abbrechen</button>
+        <button id="picker-cancel" class="secondary" type="button" hidden>Abbrechen</button>
     </div>
 
     <script src="https://cjrtnc.leaningtech.com/20260317_2978/loader.js"></script>

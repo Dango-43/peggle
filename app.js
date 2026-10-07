@@ -112,25 +112,192 @@ async function dbPut(key, value) {
     });
 }
 
-// ------------------------------------------------------------- jar picker
+async function dbDelete(key) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, "readwrite");
+        tx.objectStore(STORE).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+// Ask the browser not to clear our storage when space runs low.
+if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist().catch(() => {});
+}
+
+// ------------------------------------------------------------ save backup
+// The game saves itself (RMS files in CheerpJ's IndexedDB-backed /files).
+// This adds a backup file the user can keep outside the browser, e.g. in
+// the Files app, and load back later (needed if the app gets deleted).
+
+const SAVE_FORMAT = "peggle-save";
+const RESTORE_KEY = "restore";
+let currentAppId = null;
+
+function bytesToBase64(bytes) {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin);
+}
+
+function base64ToBytes(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+}
+
+// Paths of the game's save files, e.g. "/Peggle/rms/peggle", read from
+// CheerpJ's filesystem database.
+async function listSavePaths() {
+    const db = await new Promise((resolve, reject) => {
+        const req = indexedDB.open("cjFS_/files/");
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+    const prefix = "/" + currentAppId + "/rms/";
+    const paths = [];
+    for (const storeName of db.objectStoreNames) {
+        const keys = await new Promise((resolve, reject) => {
+            const req = db.transaction(storeName).objectStore(storeName).getAllKeys();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        for (const key of keys) {
+            if (typeof key === "string" && key.startsWith(prefix) && key.length > prefix.length) {
+                paths.push(key);
+            }
+        }
+    }
+    db.close();
+    return paths;
+}
+
+// Returns a File with all save data, or null if the game hasn't saved yet.
+async function buildSaveFile() {
+    if (!currentAppId) return null;
+    const files = {};
+    for (const path of await listSavePaths()) {
+        const blob = await cjFileBlob("/files" + path);
+        if (blob) {
+            files[path.split("/").pop()] = bytesToBase64(new Uint8Array(await blob.arrayBuffer()));
+        }
+    }
+    if (Object.keys(files).length === 0) return null;
+
+    const data = { format: SAVE_FORMAT, version: 1, app: currentAppId, created: new Date().toISOString(), files };
+    const date = new Date().toISOString().slice(0, 10);
+    return new File([JSON.stringify(data)], `peggle-spielstand-${date}.json`, { type: "application/json" });
+}
+
+function shareOrDownload(file) {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        // iPhone: share sheet, then "In Dateien sichern"
+        return navigator.share({ files: [file] }).catch(() => {});
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+async function readBackupFile(file) {
+    const data = JSON.parse(await file.text());
+    if (!data || data.format !== SAVE_FORMAT || typeof data.files !== "object") {
+        throw new Error("not a save file");
+    }
+    return data;
+}
+
+// Called before the game starts: writes a backup chosen in the menu back.
+async function applyPendingRestore(LauncherUtil, JFile, appId) {
+    const data = await dbGet(RESTORE_KEY);
+    if (!data) return;
+    await dbDelete(RESTORE_KEY);
+    for (const [name, b64] of Object.entries(data.files)) {
+        if (!/^[^/\\]+$/.test(name)) continue;
+        const target = await new JFile("/files/" + appId + "/rms/" + name);
+        await LauncherUtil.copyJar(new Int8Array(base64ToBytes(b64).buffer), target);
+    }
+}
+
+// ------------------------------------------------------------------- menu
+// First start: only "choose .jar". Long press ✗: save backup, load backup,
+// other .jar, cancel.
 
 const picker = document.getElementById("picker");
 const pickerText = document.getElementById("picker-text");
 const jarInput = document.getElementById("jar-input");
+const jarLabel = document.getElementById("jar-label");
+const saveInput = document.getElementById("save-input");
+const saveExport = document.getElementById("save-export");
+const saveImport = document.getElementById("save-import");
 const pickerCancel = document.getElementById("picker-cancel");
 
+const MENU_TEXT = "„Spielstand sichern“ legt eine Kopie z. B. in der App „Dateien“ ab. Mit „Spielstand laden“ holst du sie zurück.";
+
+function closePicker() {
+    picker.classList.remove("show");
+}
+
 // Resolves with the jar bytes once the user picked and we stored a file.
-function showPicker(canCancel) {
-    pickerCancel.hidden = !canCancel;
-    if (canCancel) {
-        pickerText.textContent = "Andere Spieldatei (.jar) wählen? Das Spiel startet danach neu.";
-    }
+function showPicker(isMenu) {
+    pickerCancel.hidden = !isMenu;
+    saveExport.hidden = !isMenu;
+    saveImport.hidden = !isMenu;
+    jarLabel.classList.toggle("secondary", isMenu);
+    jarLabel.textContent = isMenu ? "Andere .jar-Datei wählen" : ".jar-Datei wählen";
+    if (isMenu) pickerText.textContent = MENU_TEXT;
     picker.classList.add("show");
     jarInput.value = "";
+    saveInput.value = "";
+
+    // Prepare the backup now, so the share sheet opens right on tap
+    // (iOS only allows it directly after a tap).
+    let saveFile = null;
+    if (isMenu) {
+        saveExport.disabled = true;
+        buildSaveFile().then(file => {
+            saveFile = file;
+            saveExport.disabled = false;
+        }).catch(e => {
+            console.error(e);
+            saveExport.disabled = false;
+        });
+    }
+    saveExport.onclick = () => {
+        if (saveFile) {
+            shareOrDownload(saveFile);
+        } else {
+            pickerText.textContent = "Noch kein Spielstand vorhanden. Spiel ein Level, dann versuch es nochmal.";
+        }
+    };
+
+    saveInput.onchange = async () => {
+        const file = saveInput.files[0];
+        if (!file) return;
+        try {
+            const data = await readBackupFile(file);
+            if (!confirm("Spielstand vom " + new Date(data.created).toLocaleDateString("de-DE") +
+                    " laden? Der aktuelle Spielstand wird ersetzt.")) {
+                return;
+            }
+            await dbPut(RESTORE_KEY, data);
+            location.reload();
+        } catch (e) {
+            console.error(e);
+            pickerText.textContent = "Das ist keine Spielstand-Datei. Wähle eine Datei „peggle-spielstand-….json“.";
+        }
+    };
 
     return new Promise(resolve => {
         pickerCancel.onclick = () => {
-            picker.classList.remove("show");
+            closePicker();
             resolve(null);
         };
         jarInput.onchange = async () => {
@@ -138,13 +305,13 @@ function showPicker(canCancel) {
             if (!file) return;
             const buf = await file.arrayBuffer();
             await dbPut(JAR_KEY, buf);
-            picker.classList.remove("show");
+            closePicker();
             resolve(buf);
         };
     });
 }
 
-async function changeJar() {
+async function openMenu() {
     keyRepeatManager.reset();
     const buf = await showPicker(true);
     if (buf) location.reload();
@@ -197,7 +364,7 @@ const keysEl = document.getElementById("keys");
 const touchKeyMap = new Map();
 
 // Hidden actions on long press
-const LONG_PRESS_ACTIONS = { F1: toggleDisplayMode, F2: changeJar };
+const LONG_PRESS_ACTIONS = { F1: toggleDisplayMode, F2: openMenu };
 const longPressTimers = new Map();
 const pressedAt = new Map();
 const pendingUps = new Map();
@@ -444,6 +611,13 @@ async function startEmulator(jarBytes) {
     const settings = await new HashMap();
     for (const [k, v] of Object.entries(SETTINGS)) await settings.put(k, v);
     await LauncherUtil.saveApp(appId, settings, null, null);
+
+    currentAppId = appId;
+    try {
+        await applyPendingRestore(LauncherUtil, JFile, appId);
+    } catch (e) {
+        console.error(e);
+    }
 
     const FreeJ2ME = await lib.org.recompile.freej2me.FreeJ2ME;
     FreeJ2ME.main(["app", appId]).catch(e => {
